@@ -32,6 +32,8 @@ def load_config_from_profile():
             "keywords": keywords,
             "location": profile.location or "France",
             "cv_text": profile.cv_text or load_cv_base(),
+            "linkedin_email": profile.linkedin_email or "",
+            "linkedin_password": profile.linkedin_password or "",
         }
     print("⚠️ Aucun profil trouvé dans Supabase. Utilisation des valeurs par défaut.")
     return {
@@ -40,6 +42,8 @@ def load_config_from_profile():
         "keywords": DEFAULT_KEYWORDS,
         "location": os.getenv("TARGET_COUNTRY", "France"),
         "cv_text": load_cv_base(),
+        "linkedin_email": os.getenv("LINKEDIN_EMAIL", ""),
+        "linkedin_password": os.getenv("LINKEDIN_PASSWORD", ""),
     }
 
 def load_cv_base():
@@ -107,17 +111,17 @@ def main_loop():
     print("=" * 55)
     init_db()
 
-    linkedin_email    = os.getenv("LINKEDIN_EMAIL", "")
-    linkedin_password = os.getenv("LINKEDIN_PASSWORD", "")
     cycle_count = 1
 
     while True:
-        config   = load_config_from_profile()
-        keywords = config["keywords"]
-        location = config["location"]
-        cv_text  = config["cv_text"]
-        name     = config["name"]
-        email    = config["email"]
+        config            = load_config_from_profile()
+        keywords          = config["keywords"]
+        location          = config["location"]
+        cv_text           = config["cv_text"]
+        name              = config["name"]
+        email             = config["email"]
+        linkedin_email    = config["linkedin_email"]
+        linkedin_password = config["linkedin_password"]
 
         print(f"\n{'='*55}")
         print(f"🔄  CYCLE #{cycle_count} — {len(keywords)} mots-clés | {name} | {location}")

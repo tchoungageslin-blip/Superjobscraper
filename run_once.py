@@ -1,7 +1,6 @@
 """
 Un seul cycle de scraping — utilisé par GitHub Actions (cron toutes les heures).
 """
-import os
 import random
 from dotenv import load_dotenv
 
@@ -22,8 +21,8 @@ def run_once():
     name     = config["name"]
     email    = config["email"]
 
-    linkedin_email    = os.getenv("LINKEDIN_EMAIL", "")
-    linkedin_password = os.getenv("LINKEDIN_PASSWORD", "")
+    linkedin_email    = config["linkedin_email"]
+    linkedin_password = config["linkedin_password"]
 
     print(f"👤 {name} | 📍 {location} | 🔑 {len(keywords)} mots-clés")
 

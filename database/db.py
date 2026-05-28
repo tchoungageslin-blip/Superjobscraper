@@ -1,6 +1,6 @@
 import os
 import uuid
-from sqlalchemy import create_engine, Column, String, DateTime, Text
+from sqlalchemy import create_engine, Column, String, DateTime, Text, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 from dotenv import load_dotenv
@@ -34,6 +34,8 @@ class Profile(Base):
     keywords = Column(String)   # Mots-clés séparés par des virgules
     location = Column(String, default="France")
     cv_text = Column(Text)
+    linkedin_email = Column(String)
+    linkedin_password = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -41,9 +43,22 @@ def init_db():
     print("☁️ Connexion directe à PostgreSQL (Supabase)...")
     try:
         Base.metadata.create_all(bind=engine)
+        _migrate_profiles()
         print("✅ Tables 'jobs' et 'profiles' synchronisées dans Supabase.")
     except Exception as e:
         print(f"❌ Erreur de connexion à la base de données : {e}")
+
+def _migrate_profiles():
+    """Ajoute les colonnes linkedin_email/linkedin_password si elles n'existent pas."""
+    db = SessionLocal()
+    try:
+        for col in ["linkedin_email", "linkedin_password"]:
+            db.execute(text(f"ALTER TABLE profiles ADD COLUMN IF NOT EXISTS {col} VARCHAR"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
 
 def load_profile():
     db = SessionLocal()
@@ -56,7 +71,7 @@ def load_profile():
     finally:
         db.close()
 
-def save_profile(name, email, job_field, keywords, location, cv_text):
+def save_profile(name, email, job_field, keywords, location, cv_text, linkedin_email="", linkedin_password=""):
     db = SessionLocal()
     try:
         existing = db.query(Profile).first()
@@ -67,12 +82,15 @@ def save_profile(name, email, job_field, keywords, location, cv_text):
             existing.keywords = keywords
             existing.location = location
             existing.cv_text = cv_text
+            existing.linkedin_email = linkedin_email
+            existing.linkedin_password = linkedin_password
             existing.updated_at = datetime.utcnow()
         else:
             profile = Profile(
                 id=str(uuid.uuid4()),
                 name=name, email=email, job_field=job_field,
-                keywords=keywords, location=location, cv_text=cv_text
+                keywords=keywords, location=location, cv_text=cv_text,
+                linkedin_email=linkedin_email, linkedin_password=linkedin_password
             )
             db.add(profile)
         db.commit()
