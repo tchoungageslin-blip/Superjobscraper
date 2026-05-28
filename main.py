@@ -3,7 +3,7 @@ import time
 import random
 from dotenv import load_dotenv
 
-from database.db import init_db, is_job_processed, add_job, update_job_status
+from database.db import init_db, is_job_processed, add_job, update_job_status, load_profile
 from scrapers.linkedin import LinkedInScraper
 from ai.generator import generate_custom_cv_content, generate_cover_letter, extract_email_from_text
 from ai.cv_builder import build_pdf_cv
@@ -11,29 +11,42 @@ from sender.email_sender import send_application_email
 
 load_dotenv()
 
-KEYWORDS = [
-    "Marketing Digital",
-    "Chargé de Marketing",
-    "Growth Hacker",
-    "SEO Manager",
-    "Community Manager",
-    "Responsable Marketing",
-    "Digital Marketing Manager",
-    "Traffic Manager",
-    "Brand Manager",
-    "Content Manager",
-]
-LOCATION = os.getenv("TARGET_COUNTRY", "France")
-CANDIDATE_NAME = os.getenv("CANDIDATE_NAME", "Votre Nom Complet")
-
 CV_BASE_PATH = os.path.join(os.path.dirname(__file__), "config", "cv_base.txt")
+
+DEFAULT_KEYWORDS = [
+    "Marketing Digital", "Chargé de Marketing", "Growth Hacker",
+    "SEO Manager", "Community Manager", "Responsable Marketing",
+]
+
+def load_config_from_profile():
+    profile = load_profile()
+    if profile:
+        print(f"✅ Profil chargé depuis Supabase : {profile.name} — {profile.job_field}")
+        keywords_raw = profile.keywords or ""
+        keywords = [k.strip() for k in keywords_raw.split(",") if k.strip()]
+        if not keywords:
+            keywords = DEFAULT_KEYWORDS
+        return {
+            "name": profile.name or "Candidat",
+            "email": profile.email or "",
+            "keywords": keywords,
+            "location": profile.location or "France",
+            "cv_text": profile.cv_text or load_cv_base(),
+        }
+    print("⚠️ Aucun profil trouvé dans Supabase. Utilisation des valeurs par défaut.")
+    return {
+        "name": os.getenv("CANDIDATE_NAME", "Candidat"),
+        "email": "",
+        "keywords": DEFAULT_KEYWORDS,
+        "location": os.getenv("TARGET_COUNTRY", "France"),
+        "cv_text": load_cv_base(),
+    }
 
 def load_cv_base():
     try:
         with open(CV_BASE_PATH, "r", encoding="utf-8") as f:
             return f.read()
     except Exception:
-        print("⚠️ Fichier config/cv_base.txt introuvable. Utilisation d'un CV vide.")
         return "CV non configuré."
 
 def process_job(job, cv_base_text):
@@ -88,26 +101,32 @@ def main_loop():
     print("🚀  SUPER JOB SCRAPPER — MOTEUR 24/7 DÉMARRÉ")
     print("=" * 55)
     init_db()
-    cv_base = load_cv_base()
+    config = load_config_from_profile()
     linkedin = LinkedInScraper()
     cycle_count = 1
 
     while True:
+        # Recharger le profil à chaque cycle pour prendre en compte les mises à jour
+        config = load_config_from_profile()
+        keywords = config["keywords"]
+        location = config["location"]
+        cv_text = config["cv_text"]
+
         print(f"\n{'='*55}")
-        print(f"�  CYCLE #{cycle_count} — {len(KEYWORDS)} mots-clés dans la file")
+        print(f"🔄  CYCLE #{cycle_count} — {len(keywords)} mots-clés | {config['name']} | {location}")
         print(f"{'='*55}")
 
-        random.shuffle(KEYWORDS)
+        random.shuffle(keywords)
 
-        for keyword in KEYWORDS:
+        for keyword in keywords:
             try:
-                jobs = linkedin.search_jobs(keyword, LOCATION, max_pages=3)
+                jobs = linkedin.search_jobs(keyword, location, max_pages=3)
                 new_jobs = [j for j in jobs if not is_job_processed(j["id"])]
                 print(f"  🆕 {len(new_jobs)} nouvelle(s) offre(s) non traitée(s) pour '{keyword}'")
 
                 for job in new_jobs:
                     try:
-                        process_job(job, cv_base)
+                        process_job(job, cv_text)
                     except Exception as e:
                         print(f"  ❌ Erreur sur un job : {e}")
                         continue
