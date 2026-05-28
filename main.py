@@ -49,7 +49,7 @@ def load_cv_base():
     except Exception:
         return "CV non configuré."
 
-def process_job(job, cv_base_text):
+def process_job(job, cv_base_text, candidate_name):
     job_id = job["id"]
     title = job["title"]
     company = job["company"]
@@ -72,10 +72,10 @@ def process_job(job, cv_base_text):
         adapted_cv = cv_base_text
 
     # 3. Générer le CV en PDF
-    pdf_path = build_pdf_cv(adapted_cv, CANDIDATE_NAME, job_id)
+    pdf_path = build_pdf_cv(adapted_cv, candidate_name, job_id)
 
     # 4. Générer la lettre de motivation
-    cover_letter = generate_cover_letter(title, company, description, CANDIDATE_NAME)
+    cover_letter = generate_cover_letter(title, company, description, candidate_name)
 
     # 5. Chercher un email dans la description
     recruiter_email = extract_email_from_text(description) if description else None
@@ -88,7 +88,7 @@ def process_job(job, cv_base_text):
             company_name=company,
             cover_letter=cover_letter,
             cv_pdf_path=pdf_path,
-            candidate_name=CANDIDATE_NAME,
+            candidate_name=candidate_name,
         )
         update_job_status(job_id, "APPLIED" if sent else "FAILED")
     else:
@@ -126,7 +126,7 @@ def main_loop():
 
                 for job in new_jobs:
                     try:
-                        process_job(job, cv_text)
+                        process_job(job, cv_text, config["name"])
                     except Exception as e:
                         print(f"  ❌ Erreur sur un job : {e}")
                         continue

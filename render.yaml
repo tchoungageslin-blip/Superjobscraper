@@ -14,7 +14,7 @@ services:
         sync: false
       - key: SENDER_EMAIL
         sync: false
-      - key: SENDER_PASSWORD
+      - key: RESEND_API_KEY
         sync: false
       - key: TARGET_COUNTRY
         value: "France"
