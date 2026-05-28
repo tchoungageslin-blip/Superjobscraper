@@ -5,13 +5,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+resend.api_key = os.getenv("RESEND_API_KEY", "")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
 
-def send_application_email(to_email, job_title, company_name, cover_letter, cv_pdf_path, candidate_name, resend_key):
-    if not resend_key:
+def send_application_email(to_email, job_title, company_name, cover_letter, cv_pdf_path, candidate_name):
+    if not resend.api_key:
         print("⚠️ Aucune clé API Resend configurée.")
         return False
-    resend.api_key = resend_key
 
     if not to_email:
         print("⚠️ Pas d'email destinataire trouvé pour ce poste.")
