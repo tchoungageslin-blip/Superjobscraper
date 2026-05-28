@@ -2,13 +2,17 @@ name: Super Job Scraper
 
 on:
   schedule:
-    - cron: "0 */3 * * *"   # toutes les 3 heures
-  workflow_dispatch:          # lancement manuel depuis GitHub
+    - cron: "0 * * * *"   # toutes les heures
+  workflow_dispatch:         # lancement manuel depuis GitHub
+
+concurrency:
+  group: scraper
+  cancel-in-progress: false  # attend la fin du run en cours avant d'en lancer un autre
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    timeout-minutes: 55
 
     steps:
       - name: Checkout code
