@@ -49,7 +49,7 @@ def load_cv_base():
     except Exception:
         return "CV non configuré."
 
-def process_job(job, cv_base_text, candidate_name):
+def process_job(job, cv_base_text, candidate_name, candidate_email, scraper=None):
     job_id = job["id"]
     title = job["title"]
     company = job["company"]
@@ -77,10 +77,16 @@ def process_job(job, cv_base_text, candidate_name):
     # 4. Générer la lettre de motivation
     cover_letter = generate_cover_letter(title, company, description, candidate_name)
 
-    # 5. Chercher un email dans la description
-    recruiter_email = extract_email_from_text(description) if description else None
+    applied = False
 
-    # 6. Envoyer l'email si un email est disponible
+    # 5. LinkedIn Easy Apply (si connecté et offre LinkedIn)
+    if scraper and platform == "LinkedIn" and scraper._logged_in:
+        easy_applied = scraper.easy_apply(link, candidate_name, candidate_email, pdf_path, cover_letter)
+        if easy_applied:
+            applied = True
+
+    # 6. Email (si email trouvé dans la description — on envoie en plus de Easy Apply)
+    recruiter_email = extract_email_from_text(description) if description else None
     if recruiter_email:
         sent = send_application_email(
             to_email=recruiter_email,
@@ -90,56 +96,60 @@ def process_job(job, cv_base_text, candidate_name):
             cv_pdf_path=pdf_path,
             candidate_name=candidate_name,
         )
-        update_job_status(job_id, "APPLIED" if sent else "FAILED")
-    else:
-        # Pas d'email → on marque "FOUND" (on a postulé manuellement ou via LinkedIn Easy Apply à venir)
-        print(f"  ℹ️ Pas d'email trouvé — statut: FOUND (candidature LinkedIn à implémenter)")
-        update_job_status(job_id, "FOUND")
+        if sent:
+            applied = True
+
+    update_job_status(job_id, "APPLIED" if applied else "FOUND")
 
 def main_loop():
     print("=" * 55)
     print("🚀  SUPER JOB SCRAPPER — MOTEUR 24/7 DÉMARRÉ")
     print("=" * 55)
     init_db()
-    config = load_config_from_profile()
-    linkedin = LinkedInScraper()
+
+    linkedin_email    = os.getenv("LINKEDIN_EMAIL", "")
+    linkedin_password = os.getenv("LINKEDIN_PASSWORD", "")
     cycle_count = 1
 
     while True:
-        # Recharger le profil à chaque cycle pour prendre en compte les mises à jour
-        config = load_config_from_profile()
+        config   = load_config_from_profile()
         keywords = config["keywords"]
         location = config["location"]
-        cv_text = config["cv_text"]
+        cv_text  = config["cv_text"]
+        name     = config["name"]
+        email    = config["email"]
 
         print(f"\n{'='*55}")
-        print(f"🔄  CYCLE #{cycle_count} — {len(keywords)} mots-clés | {config['name']} | {location}")
+        print(f"🔄  CYCLE #{cycle_count} — {len(keywords)} mots-clés | {name} | {location}")
         print(f"{'='*55}")
 
         random.shuffle(keywords)
 
-        for keyword in keywords:
-            try:
-                jobs = linkedin.search_jobs(keyword, location, max_pages=3)
-                new_jobs = [j for j in jobs if not is_job_processed(j["id"])]
-                print(f"  🆕 {len(new_jobs)} nouvelle(s) offre(s) non traitée(s) pour '{keyword}'")
+        with LinkedInScraper() as linkedin:
+            linkedin.login(linkedin_email, linkedin_password)
 
-                for job in new_jobs:
-                    try:
-                        process_job(job, cv_text, config["name"])
-                    except Exception as e:
-                        print(f"  ❌ Erreur sur un job : {e}")
-                        continue
+            for keyword in keywords:
+                try:
+                    jobs = linkedin.search_jobs(keyword, location, max_pages=3)
+                    new_jobs = [j for j in jobs if not is_job_processed(j["id"])]
+                    print(f"  🆕 {len(new_jobs)} nouvelle(s) offre(s) non traitée(s) pour '{keyword}'")
 
-                pause = random.randint(45, 120)
-                print(f"  ⏳ Pause {pause}s avant le prochain mot-clé...")
-                time.sleep(pause)
+                    for job in new_jobs:
+                        try:
+                            process_job(job, cv_text, name, email, scraper=linkedin)
+                        except Exception as e:
+                            print(f"  ❌ Erreur sur un job : {e}")
+                            continue
 
-            except Exception as e:
-                print(f"🔥 ERREUR MOTEUR sur '{keyword}': {e}")
-                print("  ↻ Redémarrage dans 3 minutes...")
-                time.sleep(180)
-                continue
+                    pause = random.randint(45, 120)
+                    print(f"  ⏳ Pause {pause}s avant le prochain mot-clé...")
+                    time.sleep(pause)
+
+                except Exception as e:
+                    print(f"🔥 ERREUR MOTEUR sur '{keyword}': {e}")
+                    print("  ↻ Redémarrage dans 3 minutes...")
+                    time.sleep(180)
+                    continue
 
         print(f"\n✅ Cycle #{cycle_count} terminé.")
         long_pause = random.randint(600, 1200)

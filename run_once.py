@@ -1,5 +1,5 @@
 """
-Un seul cycle de scraping — utilisé par GitHub Actions (cron toutes les 3h).
+Un seul cycle de scraping — utilisé par GitHub Actions (cron toutes les heures).
 """
 import os
 import random
@@ -11,40 +11,41 @@ from main import load_config_from_profile, process_job
 
 load_dotenv()
 
-DEFAULT_KEYWORDS = [
-    "Marketing Digital", "Chargé de Marketing", "Growth Hacker",
-    "SEO Manager", "Community Manager", "Responsable Marketing",
-]
-
 def run_once():
     print("🚀 SUPER JOB SCRAPPER — CYCLE UNIQUE (GitHub Actions)")
     init_db()
 
-    config = load_config_from_profile()
+    config   = load_config_from_profile()
     keywords = config["keywords"]
     location = config["location"]
     cv_text  = config["cv_text"]
     name     = config["name"]
+    email    = config["email"]
+
+    linkedin_email    = os.getenv("LINKEDIN_EMAIL", "")
+    linkedin_password = os.getenv("LINKEDIN_PASSWORD", "")
 
     print(f"👤 {name} | 📍 {location} | 🔑 {len(keywords)} mots-clés")
 
-    linkedin = LinkedInScraper()
     random.shuffle(keywords)
 
-    for keyword in keywords:
-        try:
-            jobs = linkedin.search_jobs(keyword, location, max_pages=2)
-            new_jobs = [j for j in jobs if not is_job_processed(j["id"])]
-            print(f"  🆕 {len(new_jobs)} nouvelle(s) offre(s) pour '{keyword}'")
+    with LinkedInScraper() as linkedin:
+        linkedin.login(linkedin_email, linkedin_password)
 
-            for job in new_jobs:
-                try:
-                    process_job(job, cv_text, name)
-                except Exception as e:
-                    print(f"  ❌ Erreur job : {e}")
+        for keyword in keywords:
+            try:
+                jobs = linkedin.search_jobs(keyword, location, max_pages=2)
+                new_jobs = [j for j in jobs if not is_job_processed(j["id"])]
+                print(f"  🆕 {len(new_jobs)} nouvelle(s) offre(s) pour '{keyword}'")
 
-        except Exception as e:
-            print(f"🔥 Erreur sur '{keyword}': {e}")
+                for job in new_jobs:
+                    try:
+                        process_job(job, cv_text, name, email, scraper=linkedin)
+                    except Exception as e:
+                        print(f"  ❌ Erreur job : {e}")
+
+            except Exception as e:
+                print(f"🔥 Erreur sur '{keyword}': {e}")
 
     print("✅ Cycle terminé.")
 
