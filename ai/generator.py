@@ -22,18 +22,17 @@ Voici le CV original du candidat :
 {original_cv_text}
 ---
 
-Voici l'offre d'emploi :
+Voici l'offre d'emploi ciblée :
 ---
 {job_description[:3000]}
 ---
 
-Ta mission :
-1. Réécris le TITRE du CV pour qu'il corresponde exactement au poste demandé dans l'offre.
-2. Réécris le PROFIL/RÉSUMÉ (2-3 lignes max) pour cibler précisément cette offre.
-3. Mets en valeur les COMPÉTENCES les plus pertinentes pour ce poste.
-4. Garde les expériences professionnelles dans le même ordre, mais reformule les bullet points pour qu'ils résonnent avec les mots-clés de l'offre.
-5. Ne change pas les dates, les noms d'entreprise, les diplômes.
-6. Retourne uniquement le CV réécrit en texte structuré (pas de commentaires).
+RÈGLES STRICTES DE MODIFICATION :
+1. Modifie UNIQUEMENT le TITRE du CV pour qu'il corresponde exactement au poste de l'offre.
+2. Modifie UNIQUEMENT la section PROFIL / RÉSUMÉ / OBJECTIF (2-3 phrases) pour montrer en quoi le candidat est le profil idéal pour cette entreprise et ce poste spécifique.
+3. NE MODIFIE STRICTEMENT RIEN D'AUTRE. Garde exactement les mêmes expériences, dates, entreprises, écoles, compétences, langues et loisirs. 
+4. Ne supprime aucune ligne du reste du CV. Ne rajoute pas d'expériences inventées.
+5. Retourne le CV entier avec juste le titre et le résumé modifiés. Ne fais aucun commentaire en dehors du CV.
 """
     try:
         response = client.chat.completions.create(
