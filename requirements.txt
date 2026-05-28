@@ -1,0 +1,14 @@
+playwright
+playwright-stealth
+openai
+streamlit  
+pandas
+SQLAlchemy
+python-dotenv
+reportlab
+beautifulsoup4
+requests
+
+
+supabase  
+psycopg2-binary  

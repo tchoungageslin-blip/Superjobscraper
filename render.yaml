@@ -1,0 +1,20 @@
+services:
+  - type: worker
+    name: super-job-scraper
+    env: python
+    region: frankfurt
+    buildCommand: "bash build.sh"
+    startCommand: "python main.py"
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: CANDIDATE_NAME
+        sync: false
+      - key: SENDER_EMAIL
+        sync: false
+      - key: SENDER_PASSWORD
+        sync: false
+      - key: TARGET_COUNTRY
+        value: "France"

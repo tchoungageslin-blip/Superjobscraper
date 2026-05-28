@@ -1,0 +1,8 @@
+.env
+.env.local
+__pycache__/
+*.pyc
+data/generated_cvs/
+data/jobs.db
+node_modules/
+.next/
