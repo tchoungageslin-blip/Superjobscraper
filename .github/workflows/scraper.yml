@@ -1,0 +1,36 @@
+name: Super Job Scraper
+
+on:
+  schedule:
+    - cron: "0 */3 * * *"   # toutes les 3 heures
+  workflow_dispatch:          # lancement manuel depuis GitHub
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: python -m playwright install chromium --with-deps
+
+      - name: Run scraper (1 cycle)
+        env:
+          DATABASE_URL:        ${{ secrets.DATABASE_URL }}
+          OPENROUTER_API_KEY:  ${{ secrets.OPENROUTER_API_KEY }}
+          RESEND_API_KEY:      ${{ secrets.RESEND_API_KEY }}
+          SENDER_EMAIL:        ${{ secrets.SENDER_EMAIL }}
+          CANDIDATE_NAME:      ${{ secrets.CANDIDATE_NAME }}
+          TARGET_COUNTRY:      France
+        run: python run_once.py
