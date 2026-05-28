@@ -1,56 +1,59 @@
 import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
+import base64
+import resend
 from dotenv import load_dotenv
 
 load_dotenv()
 
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
-SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "")
+resend.api_key = os.getenv("RESEND_API_KEY", "")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
+CANDIDATE_NAME = os.getenv("CANDIDATE_NAME", "Candidat")
 
 def send_application_email(to_email, job_title, company_name, cover_letter, cv_pdf_path, candidate_name):
-    if not SENDER_EMAIL or not SENDER_PASSWORD:
-        print("⚠️ Email non configuré dans .env (SENDER_EMAIL / SENDER_PASSWORD)")
+    if not resend.api_key:
+        print("⚠️ RESEND_API_KEY non configurée dans .env")
         return False
     if not to_email:
         print("⚠️ Pas d'email destinataire trouvé pour ce poste.")
         return False
 
     try:
-        msg = MIMEMultipart()
-        msg["From"] = f"{candidate_name} <{SENDER_EMAIL}>"
-        msg["To"] = to_email
-        msg["Subject"] = f"Candidature : {job_title} — {candidate_name}"
+        subject = f"Candidature : {job_title} — {candidate_name}"
 
-        # Corps de l'email = lettre de motivation
-        body = f"""{cover_letter}
+        body_text = f"""{cover_letter}
 
 --
 {candidate_name}
 {SENDER_EMAIL}
 """
-        msg.attach(MIMEText(body, "plain", "utf-8"))
+        # Construction HTML propre
+        body_html = f"""
+        <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; max-width: 700px;">
+            <p>{cover_letter.replace(chr(10), '<br>')}</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+            <p style="color: #888; font-size: 12px;">{candidate_name}<br>{SENDER_EMAIL}</p>
+        </div>
+        """
 
-        # Pièce jointe : CV PDF
+        params: resend.Emails.SendParams = {
+            "from": f"{candidate_name} <{SENDER_EMAIL}>",
+            "to": [to_email],
+            "subject": subject,
+            "text": body_text,
+            "html": body_html,
+        }
+
+        # Ajouter le CV en pièce jointe si disponible
         if cv_pdf_path and os.path.exists(cv_pdf_path):
             with open(cv_pdf_path, "rb") as f:
-                pdf_attachment = MIMEApplication(f.read(), _subtype="pdf")
-                pdf_name = os.path.basename(cv_pdf_path)
-                pdf_attachment.add_header("Content-Disposition", "attachment", filename=pdf_name)
-                msg.attach(pdf_attachment)
+                pdf_b64 = base64.b64encode(f.read()).decode("utf-8")
+            pdf_name = os.path.basename(cv_pdf_path)
+            params["attachments"] = [{"filename": pdf_name, "content": pdf_b64}]
 
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
-
-        print(f"📧 Email envoyé à {to_email} pour '{job_title}' chez {company_name}")
+        email = resend.Emails.send(params)
+        print(f"📧 Email envoyé via Resend à {to_email} pour '{job_title}' chez {company_name} (id: {email.get('id', '?')})")
         return True
 
     except Exception as e:
-        print(f"❌ Erreur envoi email à {to_email} : {e}")
+        print(f"❌ Erreur Resend à {to_email} : {e}")
         return False
