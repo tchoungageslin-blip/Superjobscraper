@@ -53,7 +53,7 @@ def load_cv_base():
     except Exception:
         return "CV non configuré."
 
-def process_job(job, cv_base_text, candidate_name, candidate_email, scraper=None):
+def process_job(job, cv_base_text, candidate_name, candidate_email, openrouter_key, resend_key, scraper=None):
     job_id = job["id"]
     title = job["title"]
     company = job["company"]
@@ -71,7 +71,7 @@ def process_job(job, cv_base_text, candidate_name, candidate_email, scraper=None
 
     # 2. Adapter le CV via IA
     if description:
-        adapted_cv = generate_custom_cv_content(description, cv_base_text)
+        adapted_cv = generate_custom_cv_content(description, cv_base_text, openrouter_key)
     else:
         adapted_cv = cv_base_text
 
@@ -79,7 +79,7 @@ def process_job(job, cv_base_text, candidate_name, candidate_email, scraper=None
     pdf_path = build_pdf_cv(adapted_cv, candidate_name, job_id)
 
     # 4. Générer la lettre de motivation
-    cover_letter = generate_cover_letter(title, company, description, candidate_name)
+    cover_letter = generate_cover_letter(title, company, description, candidate_name, openrouter_key)
 
     applied = False
 
@@ -99,6 +99,7 @@ def process_job(job, cv_base_text, candidate_name, candidate_email, scraper=None
             cover_letter=cover_letter,
             cv_pdf_path=pdf_path,
             candidate_name=candidate_name,
+            resend_key=resend_key,
         )
         if sent:
             applied = True
@@ -123,6 +124,9 @@ def main_loop():
         linkedin_email    = config["linkedin_email"]
         linkedin_password = config["linkedin_password"]
 
+        openrouter_key    = config["openrouter_key"]
+        resend_key        = config["resend_key"]
+
         print(f"\n{'='*55}")
         print(f"🔄  CYCLE #{cycle_count} — {len(keywords)} mots-clés | {name} | {location}")
         print(f"{'='*55}")
@@ -140,7 +144,7 @@ def main_loop():
 
                     for job in new_jobs:
                         try:
-                            process_job(job, cv_text, name, email, scraper=linkedin)
+                            process_job(job, cv_text, name, email, openrouter_key, resend_key, scraper=linkedin)
                         except Exception as e:
                             print(f"  ❌ Erreur sur un job : {e}")
                             continue

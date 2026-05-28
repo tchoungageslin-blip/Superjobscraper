@@ -5,15 +5,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENROUTER_API_KEY"),
-)
-
 MODEL = "meta-llama/llama-3-70b-instruct"
 
-def generate_custom_cv_content(job_description, original_cv_text):
+def generate_custom_cv_content(job_description, original_cv_text, api_key):
     print("🧠 [IA] Adaptation du CV pour l'offre...")
+    if not api_key:
+        print("  ⚠️ Aucune clé OpenRouter fournie.")
+        return original_cv_text
+
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key,
+    )
+
     prompt = f"""Tu es un expert en recrutement et en rédaction de CV.
 
 Voici le CV original du candidat :
@@ -49,8 +53,17 @@ Ta mission :
         print(f"❌ Erreur IA (generate_custom_cv_content) : {e}")
         return original_cv_text
 
-def generate_cover_letter(job_title, company_name, job_description, candidate_name):
+def generate_cover_letter(job_title, company_name, job_description, candidate_name, api_key):
     print(f"✍️ [IA] Rédaction de la lettre de motivation pour {company_name}...")
+    if not api_key:
+        print("  ⚠️ Aucune clé OpenRouter fournie.")
+        return ""
+
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key,
+    )
+
     prompt = f"""Rédige une lettre de motivation professionnelle, concise et percutante (max 3 paragraphes) pour :
 - Candidat : {candidate_name}
 - Poste : {job_title}

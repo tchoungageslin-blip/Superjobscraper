@@ -23,6 +23,8 @@ def run_once():
 
     linkedin_email    = config["linkedin_email"]
     linkedin_password = config["linkedin_password"]
+    openrouter_key    = config.get("openrouter_key", "")
+    resend_key        = config.get("resend_key", "")
 
     print(f"👤 {name} | 📍 {location} | 🔑 {len(keywords)} mots-clés")
 
@@ -39,7 +41,7 @@ def run_once():
 
                 for job in new_jobs:
                     try:
-                        process_job(job, cv_text, name, email, scraper=linkedin)
+                        process_job(job, cv_text, name, email, openrouter_key, resend_key, scraper=linkedin)
                     except Exception as e:
                         print(f"  ❌ Erreur job : {e}")
 
