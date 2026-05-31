@@ -7,6 +7,8 @@ from .smartrecruiters import SmartRecruitersAdapter
 from .workday import WorkdayAdapter
 from .ashby import AshbyAdapter
 from .personio import PersonioAdapter
+from .teamtailor import TeamtailorAdapter
+from .bamboohr import BambooHRAdapter
 from .base import BaseATSAdapter
 from ..captcha import detect_recaptcha_sitekey, solve_recaptcha_v2, inject_recaptcha_token
 
@@ -17,6 +19,8 @@ ADAPTERS: list[BaseATSAdapter] = [
     WorkdayAdapter(),
     AshbyAdapter(),
     PersonioAdapter(),
+    TeamtailorAdapter(),
+    BambooHRAdapter(),
 ]
 
 
