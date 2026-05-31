@@ -33,7 +33,7 @@ def load_config_from_profile():
             "location": profile.location or "France",
             "cv_text": profile.cv_text or load_cv_base(),
             "linkedin_email": profile.linkedin_email or "",
-            "linkedin_password": profile.linkedin_password or "",
+            "linkedin_cookie": profile.linkedin_cookie or "",
         }
     print("⚠️ Aucun profil trouvé dans Supabase. Utilisation des valeurs par défaut.")
     return {
@@ -42,8 +42,8 @@ def load_config_from_profile():
         "keywords": DEFAULT_KEYWORDS,
         "location": os.getenv("TARGET_COUNTRY", "France"),
         "cv_text": load_cv_base(),
-        "linkedin_email": os.getenv("LINKEDIN_EMAIL", ""),
-        "linkedin_password": os.getenv("LINKEDIN_PASSWORD", ""),
+        "linkedin_email": "",
+        "linkedin_cookie": "",
     }
 
 def load_cv_base():
@@ -121,7 +121,7 @@ def main_loop():
         name              = config["name"]
         email             = config["email"]
         linkedin_email    = config["linkedin_email"]
-        linkedin_password = config["linkedin_password"]
+        linkedin_cookie   = config["linkedin_cookie"]
 
         print(f"\n{'='*55}")
         print(f"🔄  CYCLE #{cycle_count} — {len(keywords)} mots-clés | {name} | {location}")
@@ -130,7 +130,7 @@ def main_loop():
         random.shuffle(keywords)
 
         with LinkedInScraper() as linkedin:
-            linkedin.login(linkedin_email, linkedin_password)
+            linkedin.login(linkedin_cookie)
 
             for keyword in keywords:
                 try:

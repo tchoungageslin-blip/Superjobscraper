@@ -22,14 +22,14 @@ def run_once():
     email    = config["email"]
 
     linkedin_email    = config["linkedin_email"]
-    linkedin_password = config["linkedin_password"]
+    linkedin_cookie   = config["linkedin_cookie"]
 
     print(f"👤 {name} | 📍 {location} | 🔑 {len(keywords)} mots-clés")
 
     random.shuffle(keywords)
 
     with LinkedInScraper() as linkedin:
-        linkedin.login(linkedin_email, linkedin_password)
+        linkedin.login(linkedin_cookie)
 
         for keyword in keywords:
             try:

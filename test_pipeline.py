@@ -7,6 +7,7 @@ import sys
 from database.db import init_db, add_job, update_job_status, is_job_processed
 from ai.generator import generate_custom_cv_content, generate_cover_letter
 from ai.cv_builder import build_pdf_cv
+from main import load_config_from_profile
 
 def run_tests():
     errors = []
@@ -15,6 +16,7 @@ def run_tests():
     print("--- TEST 1 : Connexion Supabase ---")
     try:
         init_db()
+        config = load_config_from_profile()
         print("PASS\n")
     except Exception as e:
         print(f"FAIL : {e}\n")
@@ -23,7 +25,7 @@ def run_tests():
     # TEST 2 : Adaptation CV par IA
     print("--- TEST 2 : Adaptation CV (OpenRouter IA) ---")
     try:
-        cv_base = open("config/cv_base.txt", encoding="utf-8").read()
+        cv_base = config["cv_text"]
         offre = "Nous recherchons un Digital Marketing Manager pour piloter nos campagnes SEO et Google Ads en France."
         cv_adapte = generate_custom_cv_content(offre, cv_base)
         assert len(cv_adapte) > 100, "Reponse IA trop courte"
@@ -36,7 +38,7 @@ def run_tests():
     # TEST 3 : Generation PDF
     print("--- TEST 3 : Generation PDF ---")
     try:
-        pdf_path = build_pdf_cv(cv_adapte, "Jean Dupont", "test_job_001")
+        pdf_path = build_pdf_cv(cv_adapte, config["name"], "test_job_001")
         print(f"PASS -> {pdf_path}\n")
     except Exception as e:
         print(f"FAIL : {e}\n")
@@ -58,7 +60,7 @@ def run_tests():
     # Lettre de motivation
     print("--- TEST 5 : Lettre de motivation (IA) ---")
     try:
-        lettre = generate_cover_letter("Digital Marketing Manager", "Entreprise Test", offre, "Jean Dupont")
+        lettre = generate_cover_letter("Digital Marketing Manager", "Entreprise Test", offre, config["name"])
         assert len(lettre) > 50
         print(f"PASS ({len(lettre)} caracteres)\n")
     except Exception as e:

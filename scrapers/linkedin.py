@@ -27,6 +27,11 @@ class LinkedInScraper:
                 "--disable-dev-shm-usage",
             ]
         )
+        
+        # Charge la session si elle existe (contourne le login classique)
+        state_path = "linkedin_state.json"
+        storage_state = state_path if os.path.exists(state_path) else None
+
         self._context = self._browser.new_context(
             viewport={"width": 1366, "height": 768},
             user_agent=(
@@ -35,6 +40,7 @@ class LinkedInScraper:
                 "Chrome/120.0.0.0 Safari/537.36"
             ),
             locale="fr-FR",
+            storage_state=storage_state
         )
         self._page = self._context.new_page()
 
@@ -76,28 +82,45 @@ class LinkedInScraper:
             return url.split("/jobs/view/")[1].split("/")[0].split("?")[0]
         return self.make_job_id(url)
 
-    def login(self, email, password):
-        if self._logged_in or not email or not password:
-            return False
+    def login(self, cookie_li_at):
+        if self._logged_in:
+            return True
+            
+        # 1. Tenter avec un fichier local (si on a utilisé login_linkedin.py)
         try:
-            print("🔐 Connexion à LinkedIn...")
-            self._page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded", timeout=20000)
+            self._page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=15000)
             self.random_sleep(2, 3)
-            self._page.fill("#username", email)
-            self.random_sleep(0.5, 1)
-            self._page.fill("#password", password)
-            self.random_sleep(0.5, 1)
-            self._page.click("button[type='submit']")
-            self.random_sleep(4, 6)
-            if any(p in self._page.url for p in ["feed", "mynetwork", "jobs", "home"]):
+            if any(p in self._page.url for p in ["feed", "mynetwork", "jobs"]):
                 self._logged_in = True
-                print("✅ Connecté à LinkedIn")
+                print("✅ Connecté à LinkedIn (via fichier de session local) !")
                 return True
-            print(f"⚠️ Connexion LinkedIn échouée (URL: {self._page.url})")
-            return False
-        except Exception as e:
-            print(f"❌ Erreur connexion LinkedIn : {e}")
-            return False
+        except Exception:
+            pass
+
+        # 2. Injecter le cookie provenant de Supabase (Dashboard)
+        if cookie_li_at:
+            print("🔐 Injection du cookie de session LinkedIn (li_at)...")
+            try:
+                self._context.add_cookies([
+                    {
+                        "name": "li_at",
+                        "value": cookie_li_at,
+                        "domain": ".www.linkedin.com",
+                        "path": "/"
+                    }
+                ])
+                self._page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=20000)
+                self.random_sleep(2, 4)
+                if any(p in self._page.url for p in ["feed", "mynetwork", "jobs", "home"]):
+                    self._logged_in = True
+                    print("✅ Connecté à LinkedIn (via le cookie du dashboard) !")
+                    return True
+                print("⚠️ Le cookie fourni est invalide ou expiré.")
+            except Exception as e:
+                print(f"❌ Erreur lors de l'injection du cookie : {e}")
+
+        print("⚠️ Aucune session active et aucun cookie valide fourni. Le bot ne pourra pas utiliser Easy Apply.")
+        return False
 
     def get_job_description(self, job_url):
         try:

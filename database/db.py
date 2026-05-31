@@ -35,7 +35,7 @@ class Profile(Base):
     location = Column(String, default="France")
     cv_text = Column(Text)
     linkedin_email = Column(String)
-    linkedin_password = Column(String)
+    linkedin_cookie = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -49,10 +49,10 @@ def init_db():
         print(f"❌ Erreur de connexion à la base de données : {e}")
 
 def _migrate_profiles():
-    """Ajoute les colonnes linkedin_email/linkedin_password si elles n'existent pas."""
+    """Ajoute les colonnes linkedin_email/linkedin_cookie si elles n'existent pas."""
     db = SessionLocal()
     try:
-        for col in ["linkedin_email", "linkedin_password"]:
+        for col in ["linkedin_email", "linkedin_cookie"]:
             db.execute(text(f"ALTER TABLE profiles ADD COLUMN IF NOT EXISTS {col} VARCHAR"))
         db.commit()
     except Exception:
@@ -71,7 +71,7 @@ def load_profile():
     finally:
         db.close()
 
-def save_profile(name, email, job_field, keywords, location, cv_text, linkedin_email="", linkedin_password=""):
+def save_profile(name, email, job_field, keywords, location, cv_text, linkedin_email="", linkedin_cookie=""):
     db = SessionLocal()
     try:
         existing = db.query(Profile).first()
@@ -83,14 +83,14 @@ def save_profile(name, email, job_field, keywords, location, cv_text, linkedin_e
             existing.location = location
             existing.cv_text = cv_text
             existing.linkedin_email = linkedin_email
-            existing.linkedin_password = linkedin_password
+            existing.linkedin_cookie = linkedin_cookie
             existing.updated_at = datetime.utcnow()
         else:
             profile = Profile(
                 id=str(uuid.uuid4()),
                 name=name, email=email, job_field=job_field,
                 keywords=keywords, location=location, cv_text=cv_text,
-                linkedin_email=linkedin_email, linkedin_password=linkedin_password
+                linkedin_email=linkedin_email, linkedin_cookie=linkedin_cookie
             )
             db.add(profile)
         db.commit()
