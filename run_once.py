@@ -57,6 +57,34 @@ def run_once():
     with LinkedInScraper() as linkedin:
         linkedin.login(linkedin_cookie)
 
+        # Chemin de test direct: traiter une URL de job fournie (bypasse la recherche)
+        test_job_url = os.getenv("TEST_JOB_URL", "").strip()
+        if test_job_url:
+            try:
+                job_id = linkedin.extract_job_id_from_url(test_job_url)
+            except Exception:
+                # Fallback simple si échec d'extraction
+                import hashlib
+                job_id = hashlib.md5(test_job_url.encode()).hexdigest()
+            try:
+                desc = linkedin.get_job_description(test_job_url)
+            except Exception:
+                desc = ""
+            job = {
+                "id": job_id,
+                "platform": "LinkedIn",
+                "title": "Test Job",
+                "company": "N/A",
+                "link": test_job_url,
+                "description": desc,
+            }
+            try:
+                process_job(job, cv_text, name, email, scraper=linkedin, prefs=prefs)
+            except Exception as e:
+                print(f"  ❌ Erreur job (TEST_JOB_URL): {e}")
+            print("✅ Cycle terminé (TEST_JOB_URL).")
+            return
+
         for idx, keyword in enumerate(keywords):
             if idx >= max_keywords:
                 break
