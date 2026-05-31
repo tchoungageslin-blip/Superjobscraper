@@ -74,7 +74,7 @@ CV:
                 {"role": "system", "content": "Tu produis uniquement une liste de mots-clés séparés par des virgules."},
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=400,
+            max_tokens=150,
             temperature=0.2,
         ) or ""
         # Parse en liste
@@ -124,7 +124,7 @@ TA MISSION STRICTE ET UNIQUE :
                 {"role": "system", "content": "Tu es un outil automatique de modification de CV. Tu retournes uniquement le CV final sans aucun dialogue."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=2500,
+            max_tokens=600,
             temperature=0.1,
         )
         return text or original_cv_text
@@ -154,7 +154,7 @@ Langue : Français. Pas de [PLACEHOLDER] ou de crochets. Retourne uniquement la 
                 {"role": "system", "content": "Tu rédiges des lettres de motivation en français, professionnelles et personnalisées."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=800,
+            max_tokens=200,
             temperature=0.6,
         )
         return text or ""
