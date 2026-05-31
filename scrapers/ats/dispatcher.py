@@ -4,6 +4,9 @@ from typing import Dict, Any, Optional
 from .greenhouse import GreenhouseAdapter
 from .lever import LeverAdapter
 from .smartrecruiters import SmartRecruitersAdapter
+from .workday import WorkdayAdapter
+from .ashby import AshbyAdapter
+from .personio import PersonioAdapter
 from .base import BaseATSAdapter
 from ..captcha import detect_recaptcha_sitekey, solve_recaptcha_v2, inject_recaptcha_token
 
@@ -11,6 +14,9 @@ ADAPTERS: list[BaseATSAdapter] = [
     GreenhouseAdapter(),
     LeverAdapter(),
     SmartRecruitersAdapter(),
+    WorkdayAdapter(),
+    AshbyAdapter(),
+    PersonioAdapter(),
 ]
 
 
