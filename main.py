@@ -159,6 +159,20 @@ def main_loop():
             "availability_delay": config.get("availability_delay", ""),
         }
 
+        try:
+            max_jobs = int(os.getenv("MAX_JOBS_PER_RUN", "0") or "0")
+        except ValueError:
+            max_jobs = 0
+        try:
+            max_keywords = int(os.getenv("MAX_KEYWORDS_PER_RUN", "0") or "0")
+        except ValueError:
+            max_keywords = 0
+        try:
+            search_max_pages = int(os.getenv("SEARCH_MAX_PAGES", "3") or "3")
+        except ValueError:
+            search_max_pages = 3
+        total_processed = 0
+
         print(f"\n{'='*55}")
         print(f"🔄  CYCLE #{cycle_count} — {len(keywords)} mots-clés | {name} | {location}")
         print(f"{'='*55}")
@@ -168,28 +182,41 @@ def main_loop():
         with LinkedInScraper() as linkedin:
             linkedin.login(linkedin_cookie)
 
-            for keyword in keywords:
+            for idx, keyword in enumerate(keywords):
                 try:
-                    jobs = linkedin.search_jobs(keyword, location, max_pages=3)
+                    if max_keywords and idx >= max_keywords:
+                        break
+                    jobs = linkedin.search_jobs(keyword, location, max_pages=search_max_pages)
                     new_jobs = [j for j in jobs if not is_job_processed(j["id"])]
                     print(f"  🆕 {len(new_jobs)} nouvelle(s) offre(s) non traitée(s) pour '{keyword}'")
 
                     for job in new_jobs:
                         try:
                             process_job(job, cv_text, name, email, scraper=linkedin, prefs=prefs)
+                            total_processed += 1
                         except Exception as e:
                             print(f"  ❌ Erreur sur un job : {e}")
                             continue
+                        if max_jobs and total_processed >= max_jobs:
+                            break
+
+                    if max_jobs and total_processed >= max_jobs:
+                        break
 
                     pause = random.randint(45, 120)
-                    print(f"  ⏳ Pause {pause}s avant le prochain mot-clé...")
-                    time.sleep(pause)
+                    if not (max_jobs and total_processed >= max_jobs):
+                        print(f"  ⏳ Pause {pause}s avant le prochain mot-clé...")
+                        time.sleep(pause)
 
                 except Exception as e:
                     print(f"🔥 ERREUR MOTEUR sur '{keyword}': {e}")
                     print("  ↻ Redémarrage dans 3 minutes...")
                     time.sleep(180)
                     continue
+
+        if max_jobs and total_processed >= max_jobs:
+            print("\n🎯 Limite de test atteinte (MAX_JOBS_PER_RUN). Arrêt du moteur.")
+            break
 
         print(f"\n✅ Cycle #{cycle_count} terminé.")
         long_pause = random.randint(600, 1200)
