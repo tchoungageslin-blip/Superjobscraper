@@ -11,6 +11,7 @@ from .teamtailor import TeamtailorAdapter
 from .bamboohr import BambooHRAdapter
 from .base import BaseATSAdapter
 from ..captcha import detect_recaptcha_sitekey, solve_recaptcha_v2, inject_recaptcha_token
+from database.db import find_qa_answer
 
 ADAPTERS: list[BaseATSAdapter] = [
     GreenhouseAdapter(),
@@ -84,6 +85,54 @@ def apply_via_ats(page, url: str, candidate: Dict[str, str], cv_pdf_path: Option
                 if el and not el.input_value():
                     el.fill(cover_letter[:2000])
                     break
+        # unknown required field detection
+        try:
+            candidates = page.query_selector_all("input[type='text'], textarea, select")
+            exclude_snippets = ["email", "e-mail", "name", "full", "phone", "tel", "mobile", "resume", "cv", "cover", "linkedin", "github", "website", "portfolio"]
+            for el in candidates:
+                try:
+                    if not el.is_visible():
+                        continue
+                    tag = el.evaluate("e => e.tagName.toLowerCase()")
+                    val = ""
+                    if tag == "select":
+                        val = el.evaluate("e => e.value || ''")
+                    else:
+                        val = el.input_value() or ""
+                    if val:
+                        continue
+                    name_attr = (el.get_attribute("name") or "").lower()
+                    id_attr = (el.get_attribute("id") or "").lower()
+                    ph_attr = (el.get_attribute("placeholder") or "").lower()
+                    aria = (el.get_attribute("aria-label") or "").lower()
+                    blob = " ".join([name_attr, id_attr, ph_attr, aria])
+                    if any(s in blob for s in exclude_snippets):
+                        continue
+                    qtext = (el.get_attribute("placeholder") or el.get_attribute("aria-label") or name_attr or id_attr or "Question inconnue")
+                    # essayer via QA overrides
+                    ans = find_qa_answer(qtext)
+                    if ans:
+                        try:
+                            if tag == "select":
+                                try:
+                                    el.select_option(label=ans)
+                                except Exception:
+                                    el.select_option(value=ans)
+                            else:
+                                el.fill(ans)
+                            continue
+                        except Exception:
+                            pass
+                    if status_cb:
+                        try:
+                            status_cb("NEEDS_ANSWER", qtext)
+                        except Exception:
+                            pass
+                    return False
+                except Exception:
+                    continue
+        except Exception:
+            pass
         # submit
         for sel in [
             "button[type='submit']",

@@ -84,16 +84,28 @@ def process_job(job, cv_base_text, candidate_name, candidate_email, scraper=None
 
     applied = False
 
-    # 4. LinkedIn Easy Apply (si connecté et offre LinkedIn)
-    if scraper and platform == "LinkedIn" and scraper._logged_in:
-        easy_applied = scraper.easy_apply(link, candidate_name, candidate_email, pdf_path, cover_letter)
-        if easy_applied:
-            applied = True
-        else:
-            # Tenter l'application sur site externe (ATS)
-            ext = scraper.get_external_apply_url(link)
+    def status_cb(ev: str, details: str | None = None):
+        try:
+            update_job_status(job_id, ev, details)
+        except Exception:
+            pass
+
+    # 4. LinkedIn Easy Apply puis ATS externe si dispo
+    if scraper and platform == "LinkedIn":
+        if scraper._logged_in:
+            update_job_status(job_id, "APPLYING")
+            easy_applied = scraper.easy_apply(link, candidate_name, candidate_email, pdf_path, cover_letter, status_cb=status_cb)
+            if easy_applied:
+                applied = True
+        # Si pas appliqué via Easy Apply, tenter l'ATS externe même si non connecté
+        if not applied:
+            try:
+                ext = scraper.get_external_apply_url(link)
+            except Exception:
+                ext = None
             if ext:
-                ats_applied = scraper.apply_on_ats(ext, candidate_name, candidate_email, pdf_path, cover_letter, prefs or {})
+                update_job_status(job_id, "APPLYING")
+                ats_applied = scraper.apply_on_ats(ext, candidate_name, candidate_email, pdf_path, cover_letter, prefs or {}, status_cb=status_cb)
                 if ats_applied:
                     applied = True
 
@@ -111,7 +123,7 @@ def process_job(job, cv_base_text, candidate_name, candidate_email, scraper=None
         if sent:
             applied = True
 
-    update_job_status(job_id, "APPLIED" if applied else "FOUND")
+    update_job_status(job_id, "APPLIED" if applied else "FAILED")
 
 def main_loop():
     print("=" * 55)

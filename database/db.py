@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, Column, String, DateTime, Text, LargeBinar
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 from dotenv import load_dotenv
+import json
 
 load_dotenv()
 
@@ -23,6 +24,7 @@ class Job(Base):
     company = Column(String)
     link = Column(String)
     status = Column(String, default="FOUND")
+    details = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Profile(Base):
@@ -44,6 +46,7 @@ class Profile(Base):
     availability_delay = Column(String)
     linkedin_email = Column(String)
     linkedin_cookie = Column(String)
+    qa_overrides = Column(Text)  # JSON mapping {question_key: answer}
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -52,6 +55,7 @@ def init_db():
     try:
         Base.metadata.create_all(bind=engine)
         _migrate_profiles()
+        _migrate_jobs()
         print("✅ Tables 'jobs' et 'profiles' synchronisées dans Supabase.")
     except Exception as e:
         print(f"❌ Erreur de connexion à la base de données : {e}")
@@ -62,11 +66,75 @@ def _migrate_profiles():
     try:
         for col in [
             "linkedin_email", "linkedin_cookie", "cv_filename", "cv_mime",
-            "visa_status", "mobility", "salary_expectation", "availability_delay",
+            "visa_status", "mobility", "salary_expectation", "availability_delay", "qa_overrides",
         ]:
             db.execute(text(f"ALTER TABLE profiles ADD COLUMN IF NOT EXISTS {col} VARCHAR"))
         # Colonne binaire pour le CV
         db.execute(text("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cv_pdf BYTEA"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+def _load_profile_row(db):
+    return db.query(Profile).order_by(Profile.created_at.desc()).first()
+
+def _normalize_key(s: str) -> str:
+    s = (s or "").strip().lower()
+    for ch in ["\n", "\t"]:
+        s = s.replace(ch, " ")
+    return " ".join([p for p in s.split(" ") if p])[:256]
+
+def get_qa_overrides() -> dict:
+    db = SessionLocal()
+    try:
+        row = _load_profile_row(db)
+        if not row or not row.qa_overrides:
+            return {}
+        try:
+            return json.loads(row.qa_overrides)
+        except Exception:
+            return {}
+    finally:
+        db.close()
+
+def upsert_qa_override(question_text: str, answer: str) -> bool:
+    db = SessionLocal()
+    try:
+        row = _load_profile_row(db)
+        if not row:
+            row = Profile(id=str(uuid.uuid4()), name="", email="", job_field="", keywords="", location="France", cv_text="")
+            db.add(row)
+            db.flush()
+        mapping = {}
+        if row.qa_overrides:
+            try:
+                mapping = json.loads(row.qa_overrides)
+            except Exception:
+                mapping = {}
+        key = _normalize_key(question_text)
+        mapping[key] = answer
+        row.qa_overrides = json.dumps(mapping, ensure_ascii=False)
+        row.updated_at = datetime.utcnow()
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        return False
+    finally:
+        db.close()
+
+def find_qa_answer(question_text: str) -> str | None:
+    mapping = get_qa_overrides()
+    key = _normalize_key(question_text)
+    return mapping.get(key)
+
+def _migrate_jobs():
+    """Ajoute la colonne 'details' à jobs si absente."""
+    db = SessionLocal()
+    try:
+        db.execute(text("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS details TEXT"))
         db.commit()
     except Exception:
         db.rollback()
@@ -179,11 +247,13 @@ def add_job(job_id, platform, title, company, link):
     finally:
         db.close()
 
-def update_job_status(job_id, new_status):
+def update_job_status(job_id, new_status, details: str | None = None):
     db = SessionLocal()
     job = db.query(Job).filter(Job.id == job_id).first()
     if job:
         job.status = new_status
+        if details is not None:
+            job.details = details
         try:
             db.commit()
         except Exception as e:

@@ -172,7 +172,7 @@ class LinkedInScraper:
             print(f"  ⚠️ Pas d'URL d'application externe: {e}")
         return None
 
-    def easy_apply(self, job_url, candidate_name, candidate_email, cv_pdf_path, cover_letter):
+    def easy_apply(self, job_url, candidate_name, candidate_email, cv_pdf_path, cover_letter, status_cb=None):
         """Tente une candidature LinkedIn Easy Apply. Retourne True si soumis."""
         if not self._logged_in:
             print("  ⚠️ Easy Apply ignoré : non connecté à LinkedIn")
@@ -205,10 +205,15 @@ class LinkedInScraper:
             self.random_sleep(2, 3)
 
             for _ in range(10):
-                self._fill_form_fields(cv_pdf_path, cover_letter)
+                self._fill_form_fields(cv_pdf_path, cover_letter, status_cb=status_cb)
                 self.random_sleep(1, 2)
                 submitted = self._handle_apply_buttons()
                 if submitted:
+                    if status_cb:
+                        try:
+                            status_cb("SUBMITTED")
+                        except Exception:
+                            pass
                     print(f"  ✅ Easy Apply soumis !")
                     return True
                 if not self._page.query_selector(".jobs-easy-apply-content, .artdeco-modal__content"):
@@ -224,13 +229,18 @@ class LinkedInScraper:
                 pass
             return False
 
-    def _fill_form_fields(self, cv_pdf_path, cover_letter):
+    def _fill_form_fields(self, cv_pdf_path, cover_letter, status_cb=None):
         try:
             # Upload CV si champ file présent
             if cv_pdf_path and os.path.exists(cv_pdf_path):
                 file_input = self._page.query_selector("input[type='file']")
                 if file_input:
                     file_input.set_input_files(cv_pdf_path)
+                    if status_cb:
+                        try:
+                            status_cb("CV_UPLOADED")
+                        except Exception:
+                            pass
                     self.random_sleep(1, 2)
 
             # Lettre de motivation
@@ -276,7 +286,7 @@ class LinkedInScraper:
 
         return False
 
-    def apply_on_ats(self, url, candidate_name, candidate_email, cv_pdf_path, cover_letter, prefs=None):
+    def apply_on_ats(self, url, candidate_name, candidate_email, cv_pdf_path, cover_letter, prefs=None, status_cb=None):
         """Application sur ATS via adaptateurs dédiés avec fallback générique."""
         try:
             candidate = {"name": candidate_name, "email": candidate_email}
@@ -285,9 +295,8 @@ class LinkedInScraper:
             self._page.goto(url, wait_until="domcontentloaded", timeout=25000)
             self.random_sleep(2, 4)
             self.human_scroll()
-            def _status_cb(ev: str):
-                print(f"    [ATS] {ev}")
-            ok = apply_via_ats(self._page, url, candidate, cv_pdf_path, cover_letter, prefs, status_cb=_status_cb)
+            cb = status_cb or (lambda ev: print(f"    [ATS] {ev}"))
+            ok = apply_via_ats(self._page, url, candidate, cv_pdf_path, cover_letter, prefs, status_cb=cb)
             if ok:
                 print("  ✅ ATS soumis !")
                 return True
