@@ -141,6 +141,12 @@ def apply_via_ats(page, url: str, candidate: Dict[str, str], cv_pdf_path: Option
                     continue
         except Exception:
             pass
+        # form filled event (best effort)
+        if status_cb:
+            try:
+                status_cb("FORM_FILLED")
+            except Exception:
+                pass
         # submit
         for sel in [
             "button[type='submit']",
