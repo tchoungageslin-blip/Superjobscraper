@@ -6,17 +6,57 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# On utilise la version 100% gratuite de Llama 3 sur OpenRouter
-MODEL = "meta-llama/llama-3-8b-instruct:free"
+"""
+Sélection dynamique de modèle OpenRouter avec fallback.
+Priorité:
+1) OPENROUTER_MODEL (si défini)
+2) Liste de modèles gratuits connus
+"""
+
+def _model_candidates() -> list[str]:
+    env_model = os.getenv("OPENROUTER_MODEL", "").strip()
+    cands: list[str] = []
+    if env_model:
+        cands.append(env_model)
+    # Liste de secours (susceptible de changer côté OpenRouter)
+    cands.extend([
+        "openchat/openchat-7b:free",
+        "mistralai/mistral-7b-instruct:free",
+        "qwen/qwen-2-7b-instruct:free",
+        "google/gemma-7b-it:free",
+    ])
+    # Déduplication en conservant l'ordre
+    seen = set()
+    out = []
+    for m in cands:
+        if m and m not in seen:
+            seen.add(m)
+            out.append(m)
+    return out
+
+def _chat_complete(messages: list[dict], max_tokens: int, temperature: float) -> str | None:
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        return None
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    for model in _model_candidates():
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            return (resp.choices[0].message.content or "").strip()
+        except Exception as e:
+            print(f"⚠️ Erreur IA ({model}): {e}")
+            continue
+    return None
 
 def generate_keywords(cv_text: str, job_field: str, max_terms: int = 20) -> list[str]:
     """Génère une liste de mots-clés (FR+EN) à partir du CV et du domaine ciblé.
     Retourne une liste dédupliquée et normalisée.
     """
-    client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=os.getenv("OPENROUTER_API_KEY"),
-    )
     prompt = f"""
 Tu es un moteur de requêtes d'emploi. A partir de ce CV et du domaine "{job_field}",
 produis une liste plate (séparée par des virgules) de mots-clés de recherche pertinents (FR + EN),
@@ -29,16 +69,14 @@ CV:
 ---
 """
     try:
-        resp = client.chat.completions.create(
-            model=MODEL,
-            messages=[
+        text = _chat_complete(
+            [
                 {"role": "system", "content": "Tu produis uniquement une liste de mots-clés séparés par des virgules."},
                 {"role": "user", "content": prompt},
             ],
             max_tokens=400,
             temperature=0.2,
-        )
-        text = resp.choices[0].message.content.strip()
+        ) or ""
         # Parse en liste
         parts = re.split(r"[,\n;]+", text)
         terms = []
@@ -64,11 +102,6 @@ CV:
 def generate_custom_cv_content(job_description, original_cv_text, job_title="ce poste", company_name="votre entreprise"):
     print("🧠 [IA] Adaptation du CV pour l'offre...")
 
-    client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=os.getenv("OPENROUTER_API_KEY"),
-    )
-
     prompt = f"""Tu es un assistant automatique de formatage de CV.
 
 Voici le CV original du candidat :
@@ -86,27 +119,21 @@ TA MISSION STRICTE ET UNIQUE :
 3. Retourne UNIQUEMENT le texte complet du CV mis à jour. Aucun commentaire supplémentaire, aucune salutation.
 """
     try:
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=[
+        text = _chat_complete(
+            [
                 {"role": "system", "content": "Tu es un outil automatique de modification de CV. Tu retournes uniquement le CV final sans aucun dialogue."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=2500,
             temperature=0.1,
         )
-        return response.choices[0].message.content.strip()
+        return text or original_cv_text
     except Exception as e:
         print(f"❌ Erreur IA (generate_custom_cv_content) : {e}")
         return original_cv_text
 
 def generate_cover_letter(job_title, company_name, job_description, candidate_name):
     print(f"✍️ [IA] Rédaction de la lettre de motivation pour {company_name}...")
-
-    client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=os.getenv("OPENROUTER_API_KEY"),
-    )
 
     prompt = f"""Rédige une lettre de motivation professionnelle, concise et percutante (max 3 paragraphes) pour :
 - Candidat : {candidate_name}
@@ -122,16 +149,15 @@ La lettre doit :
 Langue : Français. Pas de [PLACEHOLDER] ou de crochets. Retourne uniquement la lettre.
 """
     try:
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=[
+        text = _chat_complete(
+            [
                 {"role": "system", "content": "Tu rédiges des lettres de motivation en français, professionnelles et personnalisées."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=800,
             temperature=0.6,
         )
-        return response.choices[0].message.content.strip()
+        return text or ""
     except Exception as e:
         print(f"❌ Erreur IA (generate_cover_letter) : {e}")
         return ""
@@ -157,12 +183,7 @@ def propose_answer_from_cv(question_text: str, cv_text: str | None, prefs: dict 
         if prefs.get("availability_delay"):
             return prefs["availability_delay"]
 
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        return None
-
     try:
-        client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
         prompt = f"""
 Tu es un assistant pour candidatures en ligne. Donne UNE réponse brève (<= 120 caractères) à la question ci-dessous
 en t'appuyant uniquement sur le CV et ces préférences. Si l'information n'est pas disponible, réponds "N/A".
@@ -176,16 +197,14 @@ CV:
 {(cv_text or '')[:3000]}
 ---
 """
-        resp = client.chat.completions.create(
-            model=MODEL,
-            messages=[
+        ans = _chat_complete(
+            [
                 {"role": "system", "content": "Tu donnes UNE réponse factuelle courte (<=120 char). Pas d'explication."},
                 {"role": "user", "content": prompt},
             ],
             max_tokens=60,
             temperature=0.1,
-        )
-        ans = (resp.choices[0].message.content or "").strip()
+        ) or ""
         if not ans or ans.lower().startswith("n/a"):
             return None
         return ans[:200]
