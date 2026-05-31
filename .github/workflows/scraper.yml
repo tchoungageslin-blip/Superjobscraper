@@ -33,6 +33,7 @@ jobs:
         env:
           DATABASE_URL:        ${{ secrets.DATABASE_URL }}
           OPENROUTER_API_KEY:  ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL:    ${{ secrets.OPENROUTER_MODEL }}
           RESEND_API_KEY:      ${{ secrets.RESEND_API_KEY }}
           SENDER_EMAIL:        ${{ secrets.SENDER_EMAIL }}
           CANDIDATE_NAME:      ${{ secrets.CANDIDATE_NAME }}
