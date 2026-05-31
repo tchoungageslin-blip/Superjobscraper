@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL = "meta-llama/llama-3-70b-instruct"
+# On utilise la version 100% gratuite de Llama 3 sur OpenRouter
+MODEL = "meta-llama/llama-3-8b-instruct:free"
 
 def generate_custom_cv_content(job_description, original_cv_text):
     print("🧠 [IA] Adaptation du CV pour l'offre...")
