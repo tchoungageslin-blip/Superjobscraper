@@ -8,7 +8,59 @@ load_dotenv()
 # On utilise la version 100% gratuite de Llama 3 sur OpenRouter
 MODEL = "meta-llama/llama-3-8b-instruct:free"
 
-def generate_custom_cv_content(job_description, original_cv_text):
+def generate_keywords(cv_text: str, job_field: str, max_terms: int = 20) -> list[str]:
+    """Génère une liste de mots-clés (FR+EN) à partir du CV et du domaine ciblé.
+    Retourne une liste dédupliquée et normalisée.
+    """
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.getenv("OPENROUTER_API_KEY"),
+    )
+    prompt = f"""
+Tu es un moteur de requêtes d'emploi. A partir de ce CV et du domaine "{job_field}",
+produis une liste plate (séparée par des virgules) de mots-clés de recherche pertinents (FR + EN),
+incluant intitulés de postes, compétences, technologies, synonymes.
+Max {max_terms} termes. Pas de phrases. Exemple de format: "product manager, chef de produit, agile, roadmap, jira, ...".
+
+CV:
+---
+{(cv_text or '')[:4000]}
+---
+"""
+    try:
+        resp = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": "Tu produis uniquement une liste de mots-clés séparés par des virgules."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=400,
+            temperature=0.2,
+        )
+        text = resp.choices[0].message.content.strip()
+        # Parse en liste
+        parts = re.split(r"[,\n;]+", text)
+        terms = []
+        seen = set()
+        for p in parts:
+            t = p.strip()
+            if not t:
+                continue
+            k = t.lower()
+            if k not in seen:
+                seen.add(k)
+                terms.append(t)
+            if len(terms) >= max_terms:
+                break
+        return terms
+    except Exception as e:
+        print(f"⚠️ Erreur IA (generate_keywords): {e}")
+        # Fallback: renvoie le domaine découpé + quelques basiques
+        fallback = [job_field] if job_field else []
+        fallback += ["cv", "resume", "hiring"]
+        return list(dict.fromkeys(fallback))
+
+def generate_custom_cv_content(job_description, original_cv_text, job_title="ce poste", company_name="votre entreprise"):
     print("🧠 [IA] Adaptation du CV pour l'offre...")
 
     client = OpenAI(
@@ -16,34 +68,31 @@ def generate_custom_cv_content(job_description, original_cv_text):
         api_key=os.getenv("OPENROUTER_API_KEY"),
     )
 
-    prompt = f"""Tu es un expert en recrutement et en rédaction de CV.
+    prompt = f"""Tu es un assistant automatique de formatage de CV.
 
 Voici le CV original du candidat :
 ---
 {original_cv_text}
 ---
 
-Voici l'offre d'emploi ciblée :
----
-{job_description[:3000]}
----
+Titre de l'offre ciblée : {job_title}
+Entreprise ciblée : {company_name}
 
-RÈGLES STRICTES DE MODIFICATION :
-1. Modifie UNIQUEMENT le TITRE du CV pour qu'il corresponde exactement au poste de l'offre.
-2. Modifie UNIQUEMENT la section PROFIL / RÉSUMÉ / OBJECTIF (2-3 phrases) pour montrer en quoi le candidat est le profil idéal pour cette entreprise et ce poste spécifique.
-3. NE MODIFIE STRICTEMENT RIEN D'AUTRE. Garde exactement les mêmes expériences, dates, entreprises, écoles, compétences, langues et loisirs. 
-4. Ne supprime aucune ligne du reste du CV. Ne rajoute pas d'expériences inventées.
-5. Retourne le CV entier avec juste le titre et le résumé modifiés. Ne fais aucun commentaire en dehors du CV.
+TA MISSION STRICTE ET UNIQUE :
+1. Ne modifie ABSOLUMENT RIEN au contenu original du CV (garde toutes les expériences, compétences, dates à l'identique).
+2. Ajoute simplement cette phrase exacte tout en haut du CV, avant même le titre :
+"J'aimerais postuler au poste de {job_title} au sein de {company_name}."
+3. Retourne UNIQUEMENT le texte complet du CV mis à jour. Aucun commentaire supplémentaire, aucune salutation.
 """
     try:
         response = client.chat.completions.create(
             model=MODEL,
             messages=[
-                {"role": "system", "content": "Tu es un expert en rédaction de CV professionnel, spécialisé dans l'optimisation ATS."},
+                {"role": "system", "content": "Tu es un outil automatique de modification de CV. Tu retournes uniquement le CV final sans aucun dialogue."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=2000,
-            temperature=0.5,
+            max_tokens=2500,
+            temperature=0.1,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:

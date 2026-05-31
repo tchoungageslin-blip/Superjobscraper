@@ -4,9 +4,10 @@ Un seul cycle de scraping — utilisé par GitHub Actions (cron toutes les heure
 import random
 from dotenv import load_dotenv
 
-from database.db import init_db, is_job_processed
+from database.db import init_db, is_job_processed, load_profile
 from scrapers.linkedin import LinkedInScraper
 from main import load_config_from_profile, process_job
+from ai.generator import generate_keywords
 
 load_dotenv()
 
@@ -15,7 +16,10 @@ def run_once():
     init_db()
 
     config   = load_config_from_profile()
-    keywords = config["keywords"]
+    # Aligne avec main: génère dynamiquement les mots-clés
+    prof = load_profile()
+    ai_keywords = generate_keywords(config["cv_text"], prof.job_field if prof else "")
+    keywords = ai_keywords or config["keywords"]
     location = config["location"]
     cv_text  = config["cv_text"]
     name     = config["name"]

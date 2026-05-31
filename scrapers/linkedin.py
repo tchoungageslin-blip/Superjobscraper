@@ -4,6 +4,7 @@ import hashlib
 import os
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
+from .ats.dispatcher import apply_via_ats
 
 class LinkedInScraper:
 
@@ -144,6 +145,33 @@ class LinkedInScraper:
             print(f"  ⚠️ Impossible de lire la description : {e}")
         return ""
 
+    def get_external_apply_url(self, job_url):
+        """Retourne l'URL 'Postuler sur le site' si présente sur la page LinkedIn job.
+        """
+        try:
+            self._page.goto(job_url, wait_until="domcontentloaded", timeout=20000)
+            self.random_sleep(1.5, 3)
+            # Boutons communs
+            for sel in [
+                "a[aria-label*='Postuler sur le site']",
+                "a[aria-label*='Apply on company website']",
+                "a[href*='companyApplyRedirect']",
+                "a.jobs-apply-button--top-card",
+            ]:
+                try:
+                    a = self._page.query_selector(sel)
+                    if a and a.is_visible():
+                        href = a.get_attribute("href")
+                        if href and not href.startswith("/jobs/apply/"):
+                            if href.startswith("/"):
+                                href = "https://www.linkedin.com" + href
+                            return href
+                except Exception:
+                    continue
+        except Exception as e:
+            print(f"  ⚠️ Pas d'URL d'application externe: {e}")
+        return None
+
     def easy_apply(self, job_url, candidate_name, candidate_email, cv_pdf_path, cover_letter):
         """Tente une candidature LinkedIn Easy Apply. Retourne True si soumis."""
         if not self._logged_in:
@@ -247,6 +275,24 @@ class LinkedInScraper:
                 return False
 
         return False
+
+    def apply_on_ats(self, url, candidate_name, candidate_email, cv_pdf_path, cover_letter, prefs=None):
+        """Application sur ATS via adaptateurs dédiés avec fallback générique."""
+        try:
+            candidate = {"name": candidate_name, "email": candidate_email}
+            prefs = prefs or {}
+            # délégué aux adaptateurs spécialisés
+            self._page.goto(url, wait_until="domcontentloaded", timeout=25000)
+            self.random_sleep(2, 4)
+            self.human_scroll()
+            ok = apply_via_ats(self._page, url, candidate, cv_pdf_path, cover_letter, prefs)
+            if ok:
+                print("  ✅ ATS soumis !")
+                return True
+            return False
+        except Exception as e:
+            print(f"  ❌ Erreur ATS: {e}")
+            return False
 
     def search_jobs(self, keyword, location, max_pages=5):
         print(f"\n🔍 [LinkedIn] Recherche : '{keyword}' @ '{location}'")

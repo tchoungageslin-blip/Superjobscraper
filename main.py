@@ -3,10 +3,9 @@ import time
 import random
 from dotenv import load_dotenv
 
-from database.db import init_db, is_job_processed, add_job, update_job_status, load_profile
+from database.db import init_db, is_job_processed, add_job, update_job_status, load_profile, export_cv_to_temp
 from scrapers.linkedin import LinkedInScraper
-from ai.generator import generate_custom_cv_content, generate_cover_letter, extract_email_from_text
-from ai.cv_builder import build_pdf_cv
+from ai.generator import generate_keywords, generate_cover_letter, extract_email_from_text
 from sender.email_sender import send_application_email
 
 load_dotenv()
@@ -34,6 +33,10 @@ def load_config_from_profile():
             "cv_text": profile.cv_text or load_cv_base(),
             "linkedin_email": profile.linkedin_email or "",
             "linkedin_cookie": profile.linkedin_cookie or "",
+            "visa_status": getattr(profile, "visa_status", "") or "",
+            "mobility": getattr(profile, "mobility", "") or "",
+            "salary_expectation": getattr(profile, "salary_expectation", "") or "",
+            "availability_delay": getattr(profile, "availability_delay", "") or "",
         }
     print("⚠️ Aucun profil trouvé dans Supabase. Utilisation des valeurs par défaut.")
     return {
@@ -44,6 +47,10 @@ def load_config_from_profile():
         "cv_text": load_cv_base(),
         "linkedin_email": "",
         "linkedin_cookie": "",
+        "visa_status": "",
+        "mobility": "",
+        "salary_expectation": "",
+        "availability_delay": "",
     }
 
 def load_cv_base():
@@ -53,7 +60,7 @@ def load_cv_base():
     except Exception:
         return "CV non configuré."
 
-def process_job(job, cv_base_text, candidate_name, candidate_email, scraper=None):
+def process_job(job, cv_base_text, candidate_name, candidate_email, scraper=None, prefs=None):
     job_id = job["id"]
     title = job["title"]
     company = job["company"]
@@ -69,27 +76,28 @@ def process_job(job, cv_base_text, candidate_name, candidate_email, scraper=None
     add_job(job_id, platform, title, company, link)
     update_job_status(job_id, "AI_PROCESSING")
 
-    # 2. Adapter le CV via IA
-    if description:
-        adapted_cv = generate_custom_cv_content(description, cv_base_text)
-    else:
-        adapted_cv = cv_base_text
+    # 2. On utilise le CV original tel quel (exporté depuis la DB)
+    pdf_path = export_cv_to_temp()
 
-    # 3. Générer le CV en PDF
-    pdf_path = build_pdf_cv(adapted_cv, candidate_name, job_id)
-
-    # 4. Générer la lettre de motivation
+    # 3. Générer la lettre de motivation
     cover_letter = generate_cover_letter(title, company, description, candidate_name)
 
     applied = False
 
-    # 5. LinkedIn Easy Apply (si connecté et offre LinkedIn)
+    # 4. LinkedIn Easy Apply (si connecté et offre LinkedIn)
     if scraper and platform == "LinkedIn" and scraper._logged_in:
         easy_applied = scraper.easy_apply(link, candidate_name, candidate_email, pdf_path, cover_letter)
         if easy_applied:
             applied = True
+        else:
+            # Tenter l'application sur site externe (ATS)
+            ext = scraper.get_external_apply_url(link)
+            if ext:
+                ats_applied = scraper.apply_on_ats(ext, candidate_name, candidate_email, pdf_path, cover_letter, prefs or {})
+                if ats_applied:
+                    applied = True
 
-    # 6. Email (si email trouvé dans la description — on envoie en plus de Easy Apply)
+    # 5. Email (si email trouvé dans la description — on envoie en plus de Easy Apply)
     recruiter_email = extract_email_from_text(description) if description else None
     if recruiter_email:
         sent = send_application_email(
@@ -115,13 +123,21 @@ def main_loop():
 
     while True:
         config            = load_config_from_profile()
-        keywords          = config["keywords"]
+        # Génère dynamiquement les mots-clés à partir du CV et du domaine
+        ai_keywords       = generate_keywords(config["cv_text"], profile.job_field if (profile := load_profile()) else "")
+        keywords          = ai_keywords or config["keywords"]
         location          = config["location"]
         cv_text           = config["cv_text"]
         name              = config["name"]
         email             = config["email"]
         linkedin_email    = config["linkedin_email"]
         linkedin_cookie   = config["linkedin_cookie"]
+        prefs             = {
+            "visa_status": config.get("visa_status", ""),
+            "mobility": config.get("mobility", ""),
+            "salary_expectation": config.get("salary_expectation", ""),
+            "availability_delay": config.get("availability_delay", ""),
+        }
 
         print(f"\n{'='*55}")
         print(f"🔄  CYCLE #{cycle_count} — {len(keywords)} mots-clés | {name} | {location}")
@@ -140,7 +156,7 @@ def main_loop():
 
                     for job in new_jobs:
                         try:
-                            process_job(job, cv_text, name, email, scraper=linkedin)
+                            process_job(job, cv_text, name, email, scraper=linkedin, prefs=prefs)
                         except Exception as e:
                             print(f"  ❌ Erreur sur un job : {e}")
                             continue
