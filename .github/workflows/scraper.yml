@@ -2,7 +2,7 @@ name: Super Job Scraper
 
 on:
   schedule:
-    - cron: "0 * * * *"   # toutes les heures
+    - cron: "*/15 * * * *"   # toutes les 15 minutes
   workflow_dispatch:         # lancement manuel depuis GitHub
 
 concurrency:
