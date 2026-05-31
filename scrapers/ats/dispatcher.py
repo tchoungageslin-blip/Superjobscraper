@@ -27,7 +27,7 @@ def pick_adapter(url: str) -> Optional[BaseATSAdapter]:
     return None
 
 
-def apply_via_ats(page, url: str, candidate: Dict[str, str], cv_pdf_path: Optional[str], cover_letter: Optional[str], prefs: Dict[str, Any]) -> bool:
+def apply_via_ats(page, url: str, candidate: Dict[str, str], cv_pdf_path: Optional[str], cover_letter: Optional[str], prefs: Dict[str, Any], status_cb=None) -> bool:
     adapter = pick_adapter(url)
     if adapter:
         # Captcha pre-check
@@ -36,7 +36,7 @@ def apply_via_ats(page, url: str, candidate: Dict[str, str], cv_pdf_path: Option
             token = solve_recaptcha_v2(sitekey, url)
             if token:
                 inject_recaptcha_token(page, token)
-        return adapter.apply(page, url, candidate, cv_pdf_path, cover_letter, prefs)
+        return adapter.apply(page, url, candidate, cv_pdf_path, cover_letter, prefs, status_cb=status_cb)
     # Fallback: try generic form
     try:
         # upload
@@ -49,6 +49,11 @@ def apply_via_ats(page, url: str, candidate: Dict[str, str], cv_pdf_path: Option
             el = page.query_selector(sel)
             if el and cv_pdf_path:
                 el.set_input_files(cv_pdf_path)
+                if status_cb:
+                    try:
+                        status_cb("CV_UPLOADED")
+                    except Exception:
+                        pass
                 break
         # Captcha check (generic)
         sitekey = detect_recaptcha_sitekey(page)
@@ -86,6 +91,11 @@ def apply_via_ats(page, url: str, candidate: Dict[str, str], cv_pdf_path: Option
             if btn and btn.is_visible():
                 btn.click()
                 page.wait_for_timeout(2000)
+                if status_cb:
+                    try:
+                        status_cb("SUBMITTED")
+                    except Exception:
+                        pass
                 return True
     except Exception:
         return False

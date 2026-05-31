@@ -1,16 +1,16 @@
 from .base import BaseATSAdapter
 
-class AshbyAdapter(BaseATSAdapter):
-    hosts = ("ashbyhq.com", "jobs.ashbyhq.com")
+class ICIMSAdapter(BaseATSAdapter):
+    hosts = ("icims.com", "careers.icims.com")
 
     def apply(self, page, url, candidate, cv_pdf_path, cover_letter, prefs, status_cb=None):
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=35000)
-            page.wait_for_timeout(1200)
+            page.wait_for_timeout(1500)
 
             self._upload_cv(page, [
                 "input[type='file'][name*='resume']",
-                "input[type='file'][id*='resume']",
+                "input[type='file'][name*='cv']",
                 "input[type='file']",
             ], cv_pdf_path, status_cb)
 
@@ -39,8 +39,9 @@ class AshbyAdapter(BaseATSAdapter):
 
             if self._click_submit(page, [
                 "button[type='submit']",
+                "input[type='submit']",
                 "button:has-text('Apply')",
-                "button:has-text('Soumettre')",
+                "button:has-text('Postuler')",
             ]):
                 page.wait_for_timeout(2000)
                 if status_cb:

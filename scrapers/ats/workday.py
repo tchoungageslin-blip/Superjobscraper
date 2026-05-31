@@ -3,7 +3,7 @@ from .base import BaseATSAdapter
 class WorkdayAdapter(BaseATSAdapter):
     hosts = ("workday", "myworkdayjobs.com")
 
-    def apply(self, page, url, candidate, cv_pdf_path, cover_letter, prefs):
+    def apply(self, page, url, candidate, cv_pdf_path, cover_letter, prefs, status_cb=None):
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=40000)
             page.wait_for_timeout(1500)
@@ -15,7 +15,7 @@ class WorkdayAdapter(BaseATSAdapter):
                 "input[type='file'][name*='cv']",
                 "input[type='file']",
                 "input[type='file'][data-automation-id*='fileUpload']",
-            ], cv_pdf_path)
+            ], cv_pdf_path, status_cb)
 
             name = candidate.get("name", "")
             email = candidate.get("email", "")
@@ -38,6 +38,11 @@ class WorkdayAdapter(BaseATSAdapter):
             if cover_letter:
                 for sel in ["textarea[name*='cover']", "textarea"]:
                     if self._fill(page, sel, cover_letter[:2000]):
+                        if status_cb:
+                            try:
+                                status_cb("FORM_FILLED")
+                            except Exception:
+                                pass
                         break
 
             # Submit
@@ -48,6 +53,11 @@ class WorkdayAdapter(BaseATSAdapter):
                 "button:has-text('Soumettre')",
             ]):
                 page.wait_for_timeout(2000)
+                if status_cb:
+                    try:
+                        status_cb("SUBMITTED")
+                    except Exception:
+                        pass
                 return True
         except Exception:
             return False

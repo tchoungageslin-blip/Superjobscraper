@@ -285,7 +285,9 @@ class LinkedInScraper:
             self._page.goto(url, wait_until="domcontentloaded", timeout=25000)
             self.random_sleep(2, 4)
             self.human_scroll()
-            ok = apply_via_ats(self._page, url, candidate, cv_pdf_path, cover_letter, prefs)
+            def _status_cb(ev: str):
+                print(f"    [ATS] {ev}")
+            ok = apply_via_ats(self._page, url, candidate, cv_pdf_path, cover_letter, prefs, status_cb=_status_cb)
             if ok:
                 print("  ✅ ATS soumis !")
                 return True

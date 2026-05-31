@@ -8,11 +8,11 @@ class BaseATSAdapter:
     def matches(self, url: str) -> bool:
         return any(h in (url or "").lower() for h in self.hosts)
 
-    def apply(self, page, url: str, candidate: Dict[str, str], cv_pdf_path: Optional[str], cover_letter: Optional[str], prefs: Dict[str, Any]) -> bool:
+    def apply(self, page, url: str, candidate: Dict[str, str], cv_pdf_path: Optional[str], cover_letter: Optional[str], prefs: Dict[str, Any], status_cb=None) -> bool:
         raise NotImplementedError
 
     # Helpers
-    def _upload_cv(self, page, selectors: list[str], cv_pdf_path: Optional[str]):
+    def _upload_cv(self, page, selectors: list[str], cv_pdf_path: Optional[str], status_cb=None):
         if not (cv_pdf_path and os.path.exists(cv_pdf_path)):
             return
         for sel in selectors:
@@ -20,6 +20,11 @@ class BaseATSAdapter:
                 el = page.query_selector(sel)
                 if el:
                     el.set_input_files(cv_pdf_path)
+                    if status_cb:
+                        try:
+                            status_cb("CV_UPLOADED")
+                        except Exception:
+                            pass
                     return
             except Exception:
                 continue

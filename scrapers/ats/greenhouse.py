@@ -3,7 +3,7 @@ from .base import BaseATSAdapter
 class GreenhouseAdapter(BaseATSAdapter):
     hosts = ("greenhouse.io", "boards.greenhouse.io")
 
-    def apply(self, page, url, candidate, cv_pdf_path, cover_letter, prefs):
+    def apply(self, page, url, candidate, cv_pdf_path, cover_letter, prefs, status_cb=None):
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             page.wait_for_timeout(1500)
@@ -13,7 +13,7 @@ class GreenhouseAdapter(BaseATSAdapter):
                 "input[type='file'][name*='resume']",
                 "input[type='file'][name*='cv']",
                 "input[type='file']",
-            ], cv_pdf_path)
+            ], cv_pdf_path, status_cb)
 
             # Remplir champs
             name = candidate.get("name", "")
@@ -39,7 +39,11 @@ class GreenhouseAdapter(BaseATSAdapter):
 
             # Cover letter
             if cover_letter:
-                self._fill(page, "textarea[name*='cover']", cover_letter[:2000])
+                if self._fill(page, "textarea[name*='cover']", cover_letter[:2000]) and status_cb:
+                    try:
+                        status_cb("FORM_FILLED")
+                    except Exception:
+                        pass
 
             # Submit
             if self._click_submit(page, [
@@ -49,6 +53,11 @@ class GreenhouseAdapter(BaseATSAdapter):
                 "button:has-text('Postuler')",
             ]):
                 page.wait_for_timeout(2000)
+                if status_cb:
+                    try:
+                        status_cb("SUBMITTED")
+                    except Exception:
+                        pass
                 return True
         except Exception:
             return False
