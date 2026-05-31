@@ -83,10 +83,14 @@ def process_job(job, cv_base_text, candidate_name, candidate_email, scraper=None
     cover_letter = generate_cover_letter(title, company, description, candidate_name)
 
     applied = False
+    needs_answer = False
 
     def status_cb(ev: str, details: str | None = None):
         try:
             update_job_status(job_id, ev, details)
+            if ev == "NEEDS_ANSWER":
+                nonlocal needs_answer
+                needs_answer = True
         except Exception:
             pass
 
@@ -123,7 +127,11 @@ def process_job(job, cv_base_text, candidate_name, candidate_email, scraper=None
         if sent:
             applied = True
 
-    update_job_status(job_id, "APPLIED" if applied else "FAILED")
+    if needs_answer:
+        # Conserver l'état NEEDS_ANSWER (panel dashboard)
+        pass
+    else:
+        update_job_status(job_id, "APPLIED" if applied else "FAILED")
 
 def main_loop():
     print("=" * 55)

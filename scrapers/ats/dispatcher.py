@@ -11,7 +11,8 @@ from .teamtailor import TeamtailorAdapter
 from .bamboohr import BambooHRAdapter
 from .base import BaseATSAdapter
 from ..captcha import detect_recaptcha_sitekey, solve_recaptcha_v2, inject_recaptcha_token
-from database.db import find_qa_answer
+from database.db import find_qa_answer, load_profile
+from ai.generator import propose_answer_from_cv
 
 ADAPTERS: list[BaseATSAdapter] = [
     GreenhouseAdapter(),
@@ -111,6 +112,13 @@ def apply_via_ats(page, url: str, candidate: Dict[str, str], cv_pdf_path: Option
                     qtext = (el.get_attribute("placeholder") or el.get_attribute("aria-label") or name_attr or id_attr or "Question inconnue")
                     # essayer via QA overrides
                     ans = find_qa_answer(qtext)
+                    if not ans:
+                        try:
+                            prof = load_profile()
+                            cv_text = getattr(prof, 'cv_text', None) if prof else None
+                        except Exception:
+                            cv_text = None
+                        ans = propose_answer_from_cv(qtext, cv_text, prefs)
                     if ans:
                         try:
                             if tag == "select":

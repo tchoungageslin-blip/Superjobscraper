@@ -1,5 +1,6 @@
 import os
 import re
+import json
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -138,3 +139,56 @@ Langue : Français. Pas de [PLACEHOLDER] ou de crochets. Retourne uniquement la 
 def extract_email_from_text(text):
     emails = re.findall(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", text)
     return emails[0] if emails else None
+
+def propose_answer_from_cv(question_text: str, cv_text: str | None, prefs: dict | None = None) -> str | None:
+    """Propose une réponse courte à une question ATS à partir du CV et des préférences.
+    Retourne une chaîne (<=200 char) ou None si non déterminable.
+    """
+    prefs = prefs or {}
+    ql = (question_text or "").lower()
+    # Heuristiques rapides
+    if "visa" in ql or "work authorization" in ql or "permit" in ql:
+        if prefs.get("visa_status"):
+            return prefs["visa_status"]
+    if any(k in ql for k in ["salary", "compensation", "rémunération", "salaire"]):
+        if prefs.get("salary_expectation"):
+            return prefs["salary_expectation"]
+    if any(k in ql for k in ["notice", "availability", "préavis", "disponibil"]):
+        if prefs.get("availability_delay"):
+            return prefs["availability_delay"]
+
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        return None
+
+    try:
+        client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+        prompt = f"""
+Tu es un assistant pour candidatures en ligne. Donne UNE réponse brève (<= 120 caractères) à la question ci-dessous
+en t'appuyant uniquement sur le CV et ces préférences. Si l'information n'est pas disponible, réponds "N/A".
+
+Question: {question_text}
+
+Préférences (JSON): {json.dumps(prefs, ensure_ascii=False)}
+
+CV:
+---
+{(cv_text or '')[:3000]}
+---
+"""
+        resp = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": "Tu donnes UNE réponse factuelle courte (<=120 char). Pas d'explication."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=60,
+            temperature=0.1,
+        )
+        ans = (resp.choices[0].message.content or "").strip()
+        if not ans or ans.lower().startswith("n/a"):
+            return None
+        return ans[:200]
+    except Exception as e:
+        print(f"⚠️ Erreur IA (propose_answer_from_cv): {e}")
+        return None
