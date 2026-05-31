@@ -57,6 +57,20 @@ def run_once():
     with LinkedInScraper() as linkedin:
         linkedin.login(linkedin_cookie)
 
+        # Test direct ATS URL (bypasse LinkedIn entièrement)
+        test_ats_url = os.getenv("TEST_ATS_URL", "").strip()
+        if test_ats_url:
+            candidate = {"name": name, "email": email}
+            pdf_hint = None  # export_cv_to_temp est géré dans process_job normalement
+            cover = ""
+            try:
+                ok = linkedin.apply_on_ats(test_ats_url, name, email, pdf_hint, cover, prefs=prefs)
+                print(f"✅ TEST_ATS_URL appliqué: {ok}")
+            except Exception as e:
+                print(f"  ❌ Erreur (TEST_ATS_URL): {e}")
+            print("✅ Cycle terminé (TEST_ATS_URL).")
+            return
+
         # Chemin de test direct: traiter une URL de job fournie (bypasse la recherche)
         test_job_url = os.getenv("TEST_JOB_URL", "").strip()
         if test_job_url:
